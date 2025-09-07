@@ -1,42 +1,47 @@
 import pandas as pd
 import numpy as np
-
+import argparse
 
 if __name__ == '__main__':
-    #TODO: make commandline arguments
-    gon_02 = pd.read_csv("../data/GON_25_02_UTM.csv")
+    # get command line arguments
+    desc = "performs base correction for RTK-GNSS measurements with base placed over arbitrary point"
+    parser = argparse.ArgumentParser(description=desc)
 
-    ref_str = "OLE3"
-    float_str = "OLE3-measured"
-    coords = ["Easting", "Northing", "Elevation"] #column names
+    parser.add_argument("--file", required=True, type=str)
+    parser.add_argument("--ref", required=True, type=str)
+    parser.add_argument("--meas", required=True, type=str)
 
-    #print(gon_02.head(5))
-    #print(gon_02.dtypes)
-    #print(gon_02.info())
-    #print(gon_02["Name"].head())
+    args = parser.parse_args()
 
-    
-    ref_p = gon_02.loc[gon_02["Name"] == ref_str, coords]
-    float_p = gon_02.loc[gon_02["Name"] == float_str, coords] # maybe put both in one dataframe with .isin() ?
+    fn = args.file
+    ref_str = args.ref
+    meas_str = args.meas
+    coords = ["Easting", "Northing", "Elevation"] #column names, should be mutable by commandline aswell ...
 
-    #TODO: make np.array ??? -> no hassle with column names and so on ...
+    # read data:
+    table = pd.read_csv(fn)
+
+    # reference and measured cartesian 3D point coordinates only
+    ref_p = table.loc[table["Name"] == ref_str, coords]
+    meas_p = table.loc[table["Name"] == meas_str, coords]     
+
     # desired result: array/tuple/whatever with delta x, delta y and delta z
-    # 
+    delta = meas_p.iloc[0] - ref_p.iloc[0] # = pd.Series
 
-    print(type(float_p))
-    print(type(float_p["Easting"]))
-
-    print(float_p)
-    print(ref_p)
-    print(float_p.iloc[0, 0] - ref_p.iloc[0, 0]) # is the same as:
-    print(float_p.iat[0, 0] - ref_p.iat[0, 0])
-
-    #print(delta_x)
     # save corrected coordinates here:
-    gon_02_corr = gon_02
+    corr = table - delta # correct coordinats, but all other data lost ...
 
+    #old = table.copy() # for checking purposes ..
+    table.loc[table["Name"] != ref_str, coords] = corr.loc[corr["Name"] != ref_str, coords] # df w/ correct coordinates and all other data.
 
-    #things wich didn't work:
-    #print(float_p[0, "Easting"])
-    #print(float_p.loc[0, "Easting"] - ref_p.loc[0, "Easting"])
+    #print((table[coords] + delta) == old[coords])
+    #print(table[coords] == old[coords])
+    #print(table.head(5))
+    #coords.append("Name")
+    #print(table[coords].head(5))
 
+    # write to disc:
+    base = fn.removesuffix('.csv')
+    fn = base + '-corr.csv'
+    
+    table.to_csv(path_or_buf = fn)
